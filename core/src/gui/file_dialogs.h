@@ -584,7 +584,7 @@ inline bool internal::executor::kill()
     }
 #elif __EMSCRIPTEN__ || __NX__
     // FIXME: do something
-    (void)timeout;
+    // (void)timeout;
     return false; // cannot kill
 #else
     ::kill(m_pid, SIGKILL);
@@ -933,7 +933,9 @@ inline internal::file_dialog::file_dialog(type in_type,
             std::vector<std::string> const &filters /* = {} */,
             opt options /* = opt::none */)
 {
-#if _WIN32
+#if __EMSCRIPTEN__
+    return;
+#elif _WIN32
     std::string filter_list;
     std::regex whitespace("  *");
     for (size_t i = 0; i + 1 < filters.size(); i += 2)
@@ -1316,7 +1318,9 @@ inline notify::notify(std::string const &title,
     if (_icon == icon::question) // Not supported by notifications
         _icon = icon::info;
 
-#if _WIN32
+#if __EMSCRIPTEN__
+    return;
+#elif _WIN32
     // Use a static shared pointer for notify_icon so that we can delete
     // it whenever we need to display a new one, and we can also wait
     // until the program has finished running.
