@@ -9,6 +9,8 @@ void CommandArgsParser::defineAll() {
         std::string root = (std::string)getenv("HOME") + "/Library/Application Support/sdrpp";
 #elif defined(__ANDROID__)
         std::string root = "/storage/self/primary/sdrpp";
+#elif defined(__EMSCRIPTEN__)
+        std::string root = "/sdrpp";
 #else
         std::string root = (std::string)getenv("HOME") + "/.config/sdrpp";
 #endif
