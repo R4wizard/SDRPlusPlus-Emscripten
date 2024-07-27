@@ -222,7 +222,7 @@ namespace backend {
         ImGui::NewFrame();
     }
 
-    void render(bool vsync) {
+    void render(bool vsync, bool ignoreVsync) {
         // Rendering
         ImGui::Render();
         int display_w, display_h;
@@ -232,7 +232,8 @@ namespace backend {
         glClear(GL_COLOR_BUFFER_BIT);
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
-        glfwSwapInterval(vsync);
+        if(ignoreVsync == false)
+            glfwSwapInterval(vsync);
         glfwSwapBuffers(window);
     }
 

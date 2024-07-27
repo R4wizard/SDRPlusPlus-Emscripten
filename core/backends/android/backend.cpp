@@ -157,7 +157,7 @@ namespace backend {
         ImGui::NewFrame();
     }
 
-    void render(bool vsync) {
+    void render(bool vsync, bool ignoreVsync) {
         // Rendering
         ImGui::Render();
         auto dSize = ImGui::GetIO().DisplaySize;
