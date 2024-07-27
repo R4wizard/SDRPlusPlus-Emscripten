@@ -12,6 +12,10 @@
 #include <stb_image_resize.h>
 #include <gui/gui.h>
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten/emscripten.h>
+#endif
+
 namespace backend {
     const char* OPENGL_VERSIONS_GLSL[] = {
         "#version 120",
@@ -88,6 +92,19 @@ namespace backend {
         // Create window with graphics context
         monitor = glfwGetPrimaryMonitor();
         window = glfwCreateWindow(winWidth, winHeight, "SDR++ v" VERSION_STR " (Built at " __TIME__ ", " __DATE__ ")", NULL, NULL);
+        if (window == NULL)
+            return 1;
+        glfwMakeContextCurrent(window);
+    #elif defined(__EMSCRIPTEN__)
+        // GL 3.2 + GLSL 150
+        const char* glsl_version = "#version 100";
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
+        glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
+
+        // Create window with graphics context
+        monitor = glfwGetPrimaryMonitor();
+        window = glfwCreateWindow(winWidth, winHeight, "SDR++ v" VERSION_STR " (Built at " __TIME__ ", " __DATE__ ") [WebAssembly]", NULL, NULL);
         if (window == NULL)
             return 1;
         glfwMakeContextCurrent(window);
@@ -229,64 +246,71 @@ namespace backend {
         ImGui_ImplGlfw_CursorPosCallback(window, x, y);
     }
 
+    void renderLoopBody() {
+        glfwPollEvents();
+
+        beginFrame();
+        
+        if (_maximized != maximized) {
+            _maximized = maximized;
+            core::configManager.acquire();
+            core::configManager.conf["maximized"] = _maximized;
+            if (!maximized) {
+                glfwSetWindowSize(window, core::configManager.conf["windowSize"]["w"], core::configManager.conf["windowSize"]["h"]);
+            }
+            core::configManager.release(true);
+        }
+
+        glfwGetWindowSize(window, &_winWidth, &_winHeight);
+
+        if (ImGui::IsKeyPressed(GLFW_KEY_F11)) {
+            fullScreen = !fullScreen;
+            if (fullScreen) {
+                flog::info("Fullscreen: ON");
+                fsWidth = _winWidth;
+                fsHeight = _winHeight;
+                glfwGetWindowPos(window, &fsPosX, &fsPosY);
+                const GLFWvidmode* mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
+                glfwSetWindowMonitor(window, monitor, 0, 0, mode->width, mode->height, 0);
+                core::configManager.acquire();
+                core::configManager.conf["fullscreen"] = true;
+                core::configManager.release();
+            }
+            else {
+                flog::info("Fullscreen: OFF");
+                glfwSetWindowMonitor(window, nullptr, fsPosX, fsPosY, fsWidth, fsHeight, 0);
+                core::configManager.acquire();
+                core::configManager.conf["fullscreen"] = false;
+                core::configManager.release();
+            }
+        }
+
+        if ((_winWidth != winWidth || _winHeight != winHeight) && !maximized && _winWidth > 0 && _winHeight > 0) {
+            winWidth = _winWidth;
+            winHeight = _winHeight;
+            core::configManager.acquire();
+            core::configManager.conf["windowSize"]["w"] = winWidth;
+            core::configManager.conf["windowSize"]["h"] = winHeight;
+            core::configManager.release(true);
+        }
+
+        if (winWidth > 0 && winHeight > 0) {
+            ImGui::SetNextWindowPos(ImVec2(0, 0));
+            ImGui::SetNextWindowSize(ImVec2(_winWidth, _winHeight));
+            gui::mainWindow.draw();
+        }
+
+        render();
+    }
+
     int renderLoop() {
         // Main loop
-        while (!glfwWindowShouldClose(window)) {
-            glfwPollEvents();
-
-            beginFrame();
-            
-            if (_maximized != maximized) {
-                _maximized = maximized;
-                core::configManager.acquire();
-                core::configManager.conf["maximized"] = _maximized;
-                if (!maximized) {
-                    glfwSetWindowSize(window, core::configManager.conf["windowSize"]["w"], core::configManager.conf["windowSize"]["h"]);
-                }
-                core::configManager.release(true);
-            }
-
-            glfwGetWindowSize(window, &_winWidth, &_winHeight);
-
-            if (ImGui::IsKeyPressed(GLFW_KEY_F11)) {
-                fullScreen = !fullScreen;
-                if (fullScreen) {
-                    flog::info("Fullscreen: ON");
-                    fsWidth = _winWidth;
-                    fsHeight = _winHeight;
-                    glfwGetWindowPos(window, &fsPosX, &fsPosY);
-                    const GLFWvidmode* mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
-                    glfwSetWindowMonitor(window, monitor, 0, 0, mode->width, mode->height, 0);
-                    core::configManager.acquire();
-                    core::configManager.conf["fullscreen"] = true;
-                    core::configManager.release();
-                }
-                else {
-                    flog::info("Fullscreen: OFF");
-                    glfwSetWindowMonitor(window, nullptr, fsPosX, fsPosY, fsWidth, fsHeight, 0);
-                    core::configManager.acquire();
-                    core::configManager.conf["fullscreen"] = false;
-                    core::configManager.release();
-                }
-            }
-
-            if ((_winWidth != winWidth || _winHeight != winHeight) && !maximized && _winWidth > 0 && _winHeight > 0) {
-                winWidth = _winWidth;
-                winHeight = _winHeight;
-                core::configManager.acquire();
-                core::configManager.conf["windowSize"]["w"] = winWidth;
-                core::configManager.conf["windowSize"]["h"] = winHeight;
-                core::configManager.release(true);
-            }
-
-            if (winWidth > 0 && winHeight > 0) {
-                ImGui::SetNextWindowPos(ImVec2(0, 0));
-                ImGui::SetNextWindowSize(ImVec2(_winWidth, _winHeight));
-                gui::mainWindow.draw();
-            }
-
-            render();
-        }
+#if defined(__EMSCRIPTEN__)
+        emscripten_set_main_loop(renderLoopBody, 0, true);
+#else
+        while (!glfwWindowShouldClose(window))
+            renderLoopBody()
+#endif
 
         return 0;
     }

@@ -7,6 +7,7 @@ namespace backend {
     void render(bool vsync = true);
     void getMouseScreenPos(double& x, double& y);
     void setMouseScreenPos(double x, double y);
+    void renderLoopBody();
     int renderLoop();
     int end();
 }
