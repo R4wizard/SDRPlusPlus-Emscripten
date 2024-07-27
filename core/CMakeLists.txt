@@ -28,7 +28,11 @@ if (OPT_BACKEND_ANDROID)
 endif (OPT_BACKEND_ANDROID)
 
 # Add code to dyn lib
-add_library(sdrpp_core SHARED ${SRC} ${BACKEND_SRC})
+if(EMSCRIPTEN)
+    add_library(sdrpp_core STATIC ${SRC} ${BACKEND_SRC})
+else()
+    add_library(sdrpp_core SHARED ${SRC} ${BACKEND_SRC})
+endif()
 
 # Set compiler options
 target_compile_options(sdrpp_core PRIVATE ${SDRPP_COMPILER_FLAGS})
@@ -116,6 +120,51 @@ elseif (ANDROID)
         GLESv3
         log
     )
+elseif(EMSCRIPTEN)
+    find_package(PkgConfig)
+    find_package(OpenGL REQUIRED)
+
+    # pkg_check_modules(FFTW3 REQUIRED fftw3f)
+    # pkg_check_modules(VOLK REQUIRED volk)
+    # pkg_check_modules(GLFW3 REQUIRED glfw3)
+    # pkg_check_modules(LIBZSTD REQUIRED libzstd)
+
+    target_include_directories(sdrpp_core PUBLIC
+        #${OPENGL_INCLUDE_DIRS}
+        "${CMAKE_SOURCE_DIR}/emscripten/build/fftw/include"
+        #${GLFW3_INCLUDE_DIRS}
+        "${CMAKE_SOURCE_DIR}/emscripten/build/volk/include"
+        "${CMAKE_SOURCE_DIR}/emscripten/build/zstd/include"
+    )
+
+    target_link_directories(sdrpp_core PUBLIC
+        #${OPENGL_LIBRARY_DIRS}
+        "${CMAKE_SOURCE_DIR}/emscripten/build/fftw/lib"
+        #${GLFW3_LIBRARY_DIRS}
+        "${CMAKE_SOURCE_DIR}/emscripten/build/volk/lib"
+        "${CMAKE_SOURCE_DIR}/emscripten/build/zstd/lib"
+    )
+
+    message("${OPENGL_LIBRARIES}")
+    target_link_libraries(sdrpp_core PUBLIC
+        #${OPENGL_LIBRARIES}
+        "${CMAKE_SOURCE_DIR}/emscripten/build/fftw/lib/libfftw3f.a"
+        "${CMAKE_SOURCE_DIR}/emscripten/build/fftw/lib/libfftw3f_threads.a"
+        #${GLFW3_LIBRARIES}
+        "${CMAKE_SOURCE_DIR}/emscripten/build/volk/lib/libvolk.a"
+        "${CMAKE_SOURCE_DIR}/emscripten/build/zstd/lib/libzstd.a"
+    )
+
+    if (NOT USE_INTERNAL_LIBCORRECT)
+        pkg_check_modules(CORRECT REQUIRED libcorrect)
+        target_include_directories(sdrpp_core PUBLIC ${CORRECT_INCLUDE_DIRS})
+        target_link_directories(sdrpp_core PUBLIC ${CORRECT_LIBRARY_DIRS})
+        target_link_libraries(sdrpp_core PUBLIC ${CORRECT_LIBRARIES})
+    endif (NOT USE_INTERNAL_LIBCORRECT)
+
+    if (${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+        target_link_libraries(sdrpp_core PUBLIC stdc++fs)
+    endif ()
 else()
     find_package(PkgConfig)
     find_package(OpenGL REQUIRED)
